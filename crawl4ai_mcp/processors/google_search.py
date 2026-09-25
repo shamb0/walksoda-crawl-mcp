@@ -223,12 +223,21 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
                 engines = ("html", "brave", "mojeek")
                 last_exc = None
 
+                # ddgs non-DDG engines (brave/mojeek/bing/google) unpack
+                # region.lower().split("-") -> two parts, so a bare region like
+                # "us" (the tool default) crashes with "not enough values to
+                # unpack". Normalize to canonical "country-lang" (DDG also
+                # prefers l="us-en" over l="us"). "wt-wt" already has the hyphen.
+                _region = region or "wt-wt"
+                if "-" not in _region:
+                    _region = f"{_region}-en"
+
                 for backend in engines:
                     for attempt in range(3):
                         try:
                             items = list(DDGS().text(
                                 query,
-                                region=region or "wt-wt",
+                                region=_region,
                                 safesearch="moderate",
                                 max_results=num_results,
                                 backend=backend,
