@@ -9,7 +9,7 @@ import os
 import logging
 from typing import Dict, List, Optional, Any
 from urllib.parse import urlparse
-from googlesearch import search
+from ddgs import DDGS
 
 from .google_search_helpers import RateLimiter
 from .google_custom_search import CustomSearchAPIClient
@@ -203,28 +203,29 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
         validation: Dict[str, Any],
         record_rate_limit: bool = False
     ) -> Dict[str, Any]:
-        """Search using googlesearch-python library with 429 error detection"""
+        """Search using DuckDuckGo (ddgs library) with 429 error detection"""
         try:
             search_results = []
 
             loop = asyncio.get_event_loop()
 
             def do_search():
-                return list(search(
+                # ddgs (keyless, MIT) — DDGS().text() scrapes DDG's no-JS
+                # html/lite endpoint. Returns [{title, href, body}, ...].
+                return list(DDGS().text(
                     query,
-                    num_results=num_results,
-                    lang=language,
-                    sleep_interval=1.0,
-                    region=region,
-                    safe='active'
+                    region=region or "wt-wt",
+                    safesearch="moderate",
+                    max_results=num_results,
                 ))
 
-            urls = await loop.run_in_executor(None, do_search)
+            items = await loop.run_in_executor(None, do_search)
 
             if record_rate_limit:
                 self.rate_limiter.record_request('googlesearch', 'success')
 
-            for i, url in enumerate(urls):
+            for i, item in enumerate(items):
+                url = item.get('href') or item.get('url') or ''
                 if not url:
                     continue
 
@@ -232,7 +233,8 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
                     parsed_url = urlparse(url)
                     domain = parsed_url.netloc
 
-                    title, snippet = await self._extract_title_and_snippet(url)
+                    title = item.get('title') or ''
+                    snippet = item.get('body') or ''
 
                     result = {
                         'rank': i + 1,
