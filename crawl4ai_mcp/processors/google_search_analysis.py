@@ -88,10 +88,10 @@ class GoogleSearchAnalysisMixin:
 
         if self.search_mode == 'googlesearch_only':
             if config['googlesearch_python']['can_make_request']:
-                return "Ready to search with googlesearch-python"
+                return "Ready to search with duckduckgo"
             else:
                 wait_time = config['googlesearch_python']['wait_time']
-                return f"Wait {wait_time:.1f} seconds before next googlesearch-python request"
+                return f"Wait {wait_time:.1f} seconds before next duckduckgo request"
 
         elif self.search_mode == 'custom_search_only':
             if not config['custom_search_api']['configured']:
@@ -104,12 +104,12 @@ class GoogleSearchAnalysisMixin:
 
         else:  # hybrid mode
             if config['googlesearch_python']['can_make_request']:
-                return "Ready to search (will try googlesearch-python first)"
+                return "Ready to search (will try duckduckgo first)"
             elif config['custom_search_api']['configured'] and config['custom_search_api']['can_make_request']:
-                return "googlesearch-python rate limited, but Custom Search API available as fallback"
+                return "duckduckgo rate limited, but Custom Search API available as fallback"
             elif not config['custom_search_api']['configured']:
                 wait_time = config['googlesearch_python']['wait_time']
-                return f"googlesearch-python rate limited. Wait {wait_time:.1f}s or configure Custom Search API for fallback"
+                return f"duckduckgo rate limited. Wait {wait_time:.1f}s or configure Custom Search API for fallback"
             else:
                 return "Both search methods rate limited. Wait for limits to reset"
 
