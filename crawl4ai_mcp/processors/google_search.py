@@ -217,6 +217,7 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
                     region=region or "wt-wt",
                     safesearch="moderate",
                     max_results=num_results,
+                    backend="html",
                 ))
 
             items = await loop.run_in_executor(None, do_search)
