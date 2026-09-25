@@ -210,26 +210,47 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
             loop = asyncio.get_event_loop()
 
             def do_search():
-                # ddgs (keyless, MIT) — DDGS().text() scrapes DDG's no-JS
-                # html/lite endpoint. Returns [{title, href, body}, ...].
-                # DDG bot-throttles on rapid repeat (keyless tradeoff), so
-                # retry with backoff; "not enough values to unpack" is a
-                # throttled-response parse artifact, not a query error.
+                # Keyless search with multi-engine failover (r074 s27):
+                # DDG's html backend throttles adversarially on rapid repeat,
+                # so fail over across independent free engines. Chain ordered
+                # by observed reliability: html (stable no-JS) -> brave ->
+                # mojeek. Each engine retries with cooldown-jitter; an empty
+                # result OR an exception advances to the next engine (an empty
+                # page is as useless to the caller as a throttle).
+                import random as _random
                 import time as _time
+
+                engines = ("html", "brave", "mojeek")
                 last_exc = None
-                for _attempt in range(3):
-                    try:
-                        return list(DDGS().text(
-                            query,
-                            region=region or "wt-wt",
-                            safesearch="moderate",
-                            max_results=num_results,
-                            backend="html",
-                        ))
-                    except Exception as _e:
-                        last_exc = _e
-                        _time.sleep(1.5 * (_attempt + 1))
-                raise last_exc
+
+                for backend in engines:
+                    for attempt in range(3):
+                        try:
+                            items = list(DDGS().text(
+                                query,
+                                region=region or "wt-wt",
+                                safesearch="moderate",
+                                max_results=num_results,
+                                backend=backend,
+                            ))
+                        except Exception as _e:
+                            last_exc = _e
+                            # cooldown with jitter: 1.5s base, exponential,
+                            # ±30% jitter to decorrelate from DDG's throttle
+                            # window.
+                            base = 1.5 * (2 ** attempt)
+                            _time.sleep(base * (0.7 + 0.6 * _random.random()))
+                            continue
+                        if items:
+                            return items
+                        # empty result -> treat as engine failure, advance
+                        last_exc = RuntimeError(f"engine {backend} returned 0 results")
+                        break  # next engine (no point retrying an empty page)
+
+                # All engines exhausted.
+                if last_exc is not None:
+                    raise last_exc
+                return []
 
             items = await loop.run_in_executor(None, do_search)
 
