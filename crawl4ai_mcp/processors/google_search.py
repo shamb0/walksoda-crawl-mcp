@@ -137,16 +137,16 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
                 query, num_results, language, region, search_genre, validation,
                 record_rate_limit=True
             )
-            attempts.append(('googlesearch-python', googlesearch_result))
+            attempts.append(('duckduckgo', googlesearch_result))
 
             if googlesearch_result['success'] or not self._is_rate_limit_error(googlesearch_result):
                 return googlesearch_result
 
-            logging.warning(f"429 error detected with googlesearch-python, falling back to Custom Search API")
+            logging.warning(f"429 error detected with duckduckgo, falling back to Custom Search API")
             await asyncio.sleep(self.fallback_delay)
         else:
             wait_time = self.rate_limiter.get_wait_time('googlesearch')
-            attempts.append(('googlesearch-python', {
+            attempts.append(('duckduckgo', {
                 'success': False,
                 'error': f'Rate limit reached. Wait {wait_time:.1f} seconds',
                 'rate_limited': True
@@ -161,7 +161,7 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
 
             if custom_search_result['success']:
                 custom_search_result['fallback_info'] = {
-                    'primary_method': 'googlesearch-python',
+                    'primary_method': 'duckduckgo',
                     'fallback_method': 'google_custom_search_api',
                     'fallback_reason': 'Rate limit or 429 error',
                     'attempts': attempts
@@ -310,7 +310,7 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
                         'result_types': type_counts
                     }
                 },
-                'processing_method': 'googlesearch-python'
+                'processing_method': 'duckduckgo'
             }
 
         except Exception as e:
@@ -331,7 +331,7 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
 
             return {
                 'success': False,
-                'error': f'googlesearch-python error: {str(e)}',
+                'error': f'duckduckgo error: {str(e)}',
                 'query': query,
                 'suggestion': 'Try a different search query or check your internet connection'
             }

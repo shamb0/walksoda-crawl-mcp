@@ -37,7 +37,7 @@ def register_search_tools(mcp, get_modules):
     async def search_google(
         request: Annotated[Dict[str, Any], Field(description="Dict with: query (required), num_results, search_genre, language, region, recent_days, content_limit (int), content_offset (int). Optional persistence keys: output_path (absolute file path, auto .json extension — full unsliced results written to disk BEFORE content_limit/content_offset slicing), include_content_in_response (bool, default False — when True keeps results in the response too, still subject to slicing), overwrite (bool, default False).")]
     ) -> Dict[str, Any]:
-        """Search Google with genre filtering. Genres: academic, news, technical, commercial, social. Supply output_path in the request to persist the full unsliced result set to disk as JSON and receive a slim response."""
+        """Search DuckDuckGo with genre filtering. Genres: academic, news, technical, commercial, social. Supply output_path in the request to persist the full unsliced result set to disk as JSON and receive a slim response."""
         # Output path validation (Guard A)
         output_path, include_content_in_response, overwrite = _extract_persist_opts(request)
         output_error = validate_output_path(output_path, overwrite)
