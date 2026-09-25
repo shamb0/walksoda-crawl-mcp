@@ -82,7 +82,7 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
         query: str,
         num_results: int = 10,
         language: str = 'en',
-        region: str = 'us',
+        region: str = 'us-en',
         safe_search: bool = True,
         search_genre: Optional[str] = None,
         include_snippets: bool = True

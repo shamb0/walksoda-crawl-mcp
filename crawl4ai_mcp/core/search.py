@@ -37,7 +37,7 @@ async def search_google(
         num_results = max(1, min(100, request.get('num_results', 10)))
         search_genre = request.get('search_genre')
         language = request.get('language', 'en')
-        region = request.get('region', 'us')
+        region = request.get('region', 'us-en')
         safe_search = request.get('safe_search', True)
         recent_days = request.get('recent_days')
 
@@ -122,7 +122,7 @@ async def batch_search_google(
         num_results = max(1, min(100, request.get('num_results_per_query', 10)))
         search_genre = request.get('search_genre')
         language = request.get('language', 'en')
-        region = request.get('region', 'us')
+        region = request.get('region', 'us-en')
         recent_days = request.get('recent_days')
         auto_summarize = request.get('auto_summarize', False)
         summary_length = request.get('summary_length', 'medium')
@@ -371,7 +371,7 @@ async def get_search_genres() -> Dict[str, Any]:
                 "rate_limiting_enabled": True,
                 "fallback_support": config.get("custom_search_api", {}).get("available", False),
                 "supported_languages": ["en", "ja", "es", "fr", "de", "it", "pt", "ru", "zh", "ko"],
-                "supported_regions": ["us", "uk", "jp", "de", "fr", "ca", "au", "in"]
+                "supported_regions": ["us-en", "uk-en", "jp-ja", "de-de", "fr-fr", "ca-en", "au-en", "in-en", "wt-wt (global)"]
             },
             "tips": [
                 "Use specific genres to narrow down search results to relevant content types",
