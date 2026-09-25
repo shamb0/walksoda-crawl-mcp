@@ -369,7 +369,8 @@ async def get_search_genres() -> Dict[str, Any]:
             "configuration": {
                 "search_mode": config.get("search_mode", "hybrid"),
                 "rate_limiting_enabled": True,
-                "fallback_support": config.get("custom_search_api", {}).get("available", False),
+                "cse_fallback": config.get("custom_search_api", {}).get("available", False),
+                "engine_failover": True,
                 "supported_languages": ["en", "ja", "es", "fr", "de", "it", "pt", "ru", "zh", "ko"],
                 "supported_regions": ["us-en", "uk-en", "jp-ja", "de-de", "fr-fr", "ca-en", "au-en", "in-en", "wt-wt (global)"]
             },
