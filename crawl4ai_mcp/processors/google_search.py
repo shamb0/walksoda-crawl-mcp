@@ -212,13 +212,24 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
             def do_search():
                 # ddgs (keyless, MIT) — DDGS().text() scrapes DDG's no-JS
                 # html/lite endpoint. Returns [{title, href, body}, ...].
-                return list(DDGS().text(
-                    query,
-                    region=region or "wt-wt",
-                    safesearch="moderate",
-                    max_results=num_results,
-                    backend="html",
-                ))
+                # DDG bot-throttles on rapid repeat (keyless tradeoff), so
+                # retry with backoff; "not enough values to unpack" is a
+                # throttled-response parse artifact, not a query error.
+                import time as _time
+                last_exc = None
+                for _attempt in range(3):
+                    try:
+                        return list(DDGS().text(
+                            query,
+                            region=region or "wt-wt",
+                            safesearch="moderate",
+                            max_results=num_results,
+                            backend="html",
+                        ))
+                    except Exception as _e:
+                        last_exc = _e
+                        _time.sleep(1.5 * (_attempt + 1))
+                raise last_exc
 
             items = await loop.run_in_executor(None, do_search)
 
