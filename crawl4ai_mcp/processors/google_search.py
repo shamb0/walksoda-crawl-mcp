@@ -210,17 +210,20 @@ class GoogleSearchProcessor(GoogleSearchAnalysisMixin):
             loop = asyncio.get_event_loop()
 
             def do_search():
-                # Keyless search with multi-engine failover (r074 s27):
-                # DDG's html backend throttles adversarially on rapid repeat,
-                # so fail over across independent free engines. Chain ordered
-                # by observed reliability: html (stable no-JS) -> brave ->
-                # mojeek. Each engine retries with cooldown-jitter; an empty
-                # result OR an exception advances to the next engine (an empty
-                # page is as useless to the caller as a throttle).
+                # Keyless search with multi-engine failover (r074 s33).
+                # Verified live (r074 s32): ONLY google + duckduckgo honor the
+                # site: operator; brave/mojeek/startpage/yahoo return EMPTY on
+                # site: queries. "html" was a misnomer — an invalid ddgs backend
+                # key that silently falls back to `auto` (wikipedia + grokipedia
+                # FIRST), mixing a Tier-3 source and an AI-generated source into
+                # the authority lane. google is the fastest single engine (0.5s)
+                # but a WML scrape path (higher throttle risk); duckduckgo is the
+                # safe alternate. Each engine retries with cooldown-jitter; an
+                # empty result OR an exception advances to the next engine.
                 import random as _random
                 import time as _time
 
-                engines = ("html", "brave", "mojeek")
+                engines = ("google", "duckduckgo")
                 last_exc = None
 
                 # ddgs non-DDG engines (brave/mojeek/bing/google) unpack
