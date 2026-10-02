@@ -1,6 +1,7 @@
 """Core search and crawl integration for Crawl4AI MCP Server."""
 
 import asyncio
+import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,54 @@ from ..utils.time_parser import parse_time_period
 
 # Initialize Google search processor
 google_search_processor = GoogleSearchProcessor()
+
+# Operators that MUST survive keyword OR-splitting (r074 s33). A query like
+# "site:asiainch.org plain weave" means "from asiainch.org, about plain weave" —
+# the site: restriction is a hard constraint, NOT an OR-alternative. The prior
+# `" OR ".join(query.split())` destroyed it: "site:asiainch.org plain weave"
+# became "site:asiainch.org OR plain OR weave" (returned non-whitelist domains,
+# verified live r074 s32). Quoted phrases are also atomic (exact-phrase search).
+_OPERATOR_RE = re.compile(r'^(?:site|filetype|after|before):', re.IGNORECASE)
+_QUOTED_RE = re.compile(r'"[^"]*"')
+
+
+def _build_enhanced_query(search_query: str) -> str:
+    """OR-join plain keywords while preserving operators + quoted phrases.
+
+    - `site:` / `filetype:` / `after:` / `before:` operators are kept verbatim
+      and ANDed with the OR-group of the remaining plain words.
+    - `"quoted phrases"` are kept atomic (exact-phrase search), never split.
+    - A query with operators only (e.g. `site:asiainch.org plain-weave`) is
+      returned unchanged — there are no plain words to OR-join.
+    """
+    # Extract quoted phrases first (they are atomic, never OR-split).
+    quoted = _QUOTED_RE.findall(search_query)
+    remainder = _QUOTED_RE.sub(' ', search_query)
+
+    tokens = remainder.split()
+    operators = [t for t in tokens if _OPERATOR_RE.match(t)]
+    plain = [t for t in tokens if not _OPERATOR_RE.match(t)]
+
+    # Quoted phrases behave as single plain tokens (they are ANDed like any
+    # exact-phrase term, not OR-joined with the loose words).
+    plain = plain + quoted
+
+    if not plain:
+        # Only operators (e.g. "site:asiainch.org jamakkalam" is one token, or
+        # operators + quoted). Nothing to OR-join; return operators verbatim.
+        return ' '.join(operators)
+
+    if len(plain) == 1:
+        # Single plain term — no OR-group needed; AND it with any operators.
+        if operators:
+            return ' '.join(operators) + ' ' + plain[0]
+        return plain[0]
+
+    or_group = ' OR '.join(plain)
+    if operators:
+        # AND the hard constraints with the OR-group of the loose words.
+        return ' '.join(operators) + ' (' + or_group + ')'
+    return or_group
 
 
 async def search_and_crawl(
@@ -48,11 +97,11 @@ async def search_and_crawl(
         # Process query for OR conditions and date enhancement
         enhanced_query = search_query
 
-        # Convert space-separated keywords to OR conditions
-        keywords = search_query.split()
-        if len(keywords) > 1:
-            # Use OR between keywords for more flexible search
-            enhanced_query = " OR ".join(keywords)
+        # Convert space-separated keywords to OR conditions, while preserving
+        # site:/filetype:/after:/before: operators and "quoted phrases" (r074
+        # s33). See _build_enhanced_query — the prior `" OR ".join(split())`
+        # destroyed the site: restriction (verified live r074 s32).
+        enhanced_query = _build_enhanced_query(search_query)
 
         # Optionally add date filtering for recent results
         parsed_period = parse_time_period(recent_days)
