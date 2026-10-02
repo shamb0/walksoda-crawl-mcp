@@ -11,6 +11,102 @@ from .crawler_summarizer import summarize_web_content
 google_search_processor = GoogleSearchProcessor()
 
 
+async def multi_site_search(
+    request: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Search the SAME query across MULTIPLE domains (site:-scoped fan-out).
+
+    Each domain becomes one `site:<domain> <query>` query. The domain list is a
+    caller-supplied parameter (the whitelist stays in the caller's workspace —
+    this tool is generic). Reuses the processor's batch_search, so the keyless
+    failover (google -> duckduckgo) and the per-query cold-wait are inherited.
+
+    Request dict keys:
+        domains (required): list of domains (e.g. ["asiainch.org", "dsource.in"])
+        query (required): the concept/term to find on each domain
+        num_results_per_query (default 3)
+        max_concurrent (default 3, max 5)
+        language (default 'en')
+        region (default 'us-en'; use 'in-en' for country scoping)
+        search_genre (optional)
+    """
+    try:
+        domains = request.get('domains', [])
+        query = (request.get('query') or '').strip()
+        if not domains:
+            return {
+                'success': False,
+                'total_domains': 0,
+                'error': 'domains parameter is required and must be non-empty',
+            }
+        if not query:
+            return {
+                'success': False,
+                'total_domains': len(domains),
+                'error': 'query parameter is required',
+            }
+
+        # Dedupe while preserving order.
+        seen: set[str] = set()
+        domains = [d for d in domains if not (d in seen or seen.add(d))]
+
+        max_concurrent = max(1, min(5, request.get('max_concurrent', 3)))
+        num_results = max(1, min(100, request.get('num_results_per_query', 3)))
+        language = request.get('language', 'en')
+        region = request.get('region', 'us-en')
+        search_genre = request.get('search_genre')
+
+        # One site:-scoped query per domain.
+        queries = [f'site:{d} {query}' for d in domains]
+
+        batch_results = await google_search_processor.batch_search(
+            queries=queries,
+            num_results_per_query=num_results,
+            max_concurrent=max_concurrent,
+            language=language,
+            region=region,
+            search_genre=search_genre,
+        )
+
+        hits = 0
+        per_domain = []
+        for domain, result in zip(domains, batch_results):
+            entry = {
+                'domain': domain,
+                'success': result.get('success', False),
+                'total_results': result.get('total_results', 0),
+                'results': result.get('results', []),
+            }
+            if not entry['success']:
+                entry['error'] = result.get('error', 'Unknown error')
+            else:
+                hits += 1
+            per_domain.append(entry)
+
+        return {
+            'success': True,
+            'query': query,
+            'total_domains': len(domains),
+            'domains_with_hits': hits,
+            'per_domain': per_domain,
+            'batch_metadata': {
+                'max_concurrent_used': max_concurrent,
+                'num_results_per_query': num_results,
+                'language': language,
+                'region': region,
+                'search_genre': search_genre,
+            },
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'total_domains': len(request.get('domains', [])),
+            'error': f'multi_site_search error: {str(e)}',
+        }
+
+
 async def search_google(
     request: Dict[str, Any]
 ) -> Dict[str, Any]:

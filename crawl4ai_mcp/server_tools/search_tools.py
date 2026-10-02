@@ -166,6 +166,24 @@ def register_search_tools(mcp, get_modules):
             }
 
     @mcp.tool(annotations=READONLY_ANNOTATIONS)
+    async def multi_site_search(
+        request: Annotated[Dict[str, Any], Field(description="Dict with: domains (required, list of domains), query (required, the term to find on each domain), num_results_per_query (default 3), max_concurrent (default 3, max 5), language (default en), region (default us-en; use in-en for India country-scoping), search_genre. Each domain becomes one 'site:<domain> <query>' query; the keyless google->duckduckgo failover and per-query cold-wait are inherited. The domain whitelist stays caller-side.")]
+    ) -> Dict[str, Any]:
+        """Search the SAME query across MULTIPLE domains (site:-scoped fan-out). Domain list is a caller parameter — this tool is generic; the caller's whitelist stays in its own workspace. Returns per-domain hits."""
+        modules = get_modules()
+        if not modules:
+            return modules_unavailable_error()
+        _, search, _, _, _ = modules
+        try:
+            result = await search.multi_site_search(request)
+            return apply_token_limit(result, max_tokens=25000)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"multi_site_search error: {str(e)}"
+            }
+
+    @mcp.tool(annotations=READONLY_ANNOTATIONS)
     async def search_and_crawl(
         request: Annotated[Dict[str, Any], Field(description="Dict with: search_query (required), crawl_top_results, search_genre, recent_days, generate_markdown, max_content_per_page. Optional persistence keys: output_path (absolute directory — per-page .md files + index.json, the full page bodies are written BEFORE max_content_per_page truncation; dot-containing dir names are fine), include_content_in_response (bool, default False — when True keeps crawled_pages in the response too, still subject to max_content_per_page truncation), overwrite (bool, default False). Failed pages appear in index.json with file=null.")]
     ) -> Dict[str, Any]:
